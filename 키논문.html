@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>키 논문 실험</title>
+  <script src="https://unpkg.com/jspsych@8.0.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.0.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-image-keyboard-response@2.0.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-preload@2.0.0"></script>
+  <link href="https://unpkg.com/jspsych@8.0.0/css/jspsych.css" rel="stylesheet" type="text/css" />
+</head>
+<body></body>
+<script>
+  /* initialize jsPsych */
+  window.onload = function() {
+    let jsPsych = initJsPsych({
+      on_finish: function() {
+        jsPsych.data.displayData();
+      },
+      override_safe_mode: true // file:// 프로토콜 문제를 무시합니다.
+    });
+
+    /* create timeline */
+    let timeline = [];
+
+    /* preload images */
+    let preload = {
+      type: jsPsychPreload,
+      images: [
+        'jspsych/img/1.png', 'jspsych/img/2.png', 'jspsych/img/3.png', 'jspsych/img/4.png',
+        'jspsych/img/1-1.png', 'jspsych/img/1-2.png', 'jspsych/img/2-1.png', 'jspsych/img/2-2.png',
+        'jspsych/img/3-1.png', 'jspsych/img/3-2.png', 'jspsych/img/4-1.png', 'jspsych/img/4-2.png'
+      ]
+    };
+    timeline.push(preload);
+
+    /* define welcome message trial */
+    let welcome = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: "실험에 참여해주셔서 감사합니다. 키보드의 스페이스바를 눌러 다음 화면으로 넘어가주세요.",
+      choices: [" "]
+    };
+    timeline.push(welcome);
+
+    /* define instructions trial */
+    let instructions = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <p>~ 대충 실험 설명 내용 ~</p>
+        <p>문 열거면 z, 열지 않을 거면 /</p>
+        <p>키보드의 스페이스바를 누르면 실험이 시작됩니다.</p>
+      `,
+      choices: [" "],
+      post_trial_gap: 2000
+    };
+    timeline.push(instructions);
+
+    /* define trial stimuli array for acquisition phase */
+    const acquisition_stimuli = [
+      { stimulus: 'jspsych/img/1.png', correct_response: 'z', feedback: '잘 열었어요!' },
+      { stimulus: 'jspsych/img/2.png', correct_response: '/', feedback: '열지 말았어야 했어요!' },
+      { stimulus: 'jspsych/img/3.png', correct_response: 'z', feedback: '잘 열었어요!' },
+      { stimulus: 'jspsych/img/4.png', correct_response: '/', feedback: '열지 말았어야 했어요!' }
+    ];
+
+    /* define trial stimuli array for updating phase */
+    const updating_stimuli = [
+      { stimulus: 'jspsych/img/1.png', correct_response: 'z', feedback: '잘 열었어요!' },
+      { stimulus: 'jspsych/img/2.png', correct_response: '/', feedback: '열지 말았어야 했어요!' },
+      { stimulus: 'jspsych/img/3.png', correct_response: 'z', feedback: '잘 열었어요!' },
+      { stimulus: 'jspsych/img/4.png', correct_response: '/', feedback: '열지 말았어야 했어요!' },
+      { stimulus: 'jspsych/img/1-1.png', correct_response: '/', feedback: '열지 말았어야 했어요!' },
+      { stimulus: 'jspsych/img/1-2.png', correct_response: '/', feedback: '열지 말았어야 했어요!' },
+      { stimulus: 'jspsych/img/2-1.png', correct_response: 'z', feedback: '잘 열었어요!' },
+      { stimulus: 'jspsych/img/2-2.png', correct_response: 'z', feedback: '잘 열었어요!' },
+      { stimulus: 'jspsych/img/3-1.png', correct_response: '/', feedback: '열지 말았어야 했어요!' },
+      { stimulus: 'jspsych/img/3-2.png', correct_response: '/', feedback: '열지 말았어야 했어요!' },
+      { stimulus: 'jspsych/img/4-1.png', correct_response: 'z', feedback: '잘 열었어요!' },
+      { stimulus: 'jspsych/img/4-2.png', correct_response: 'z', feedback: '잘 열었어요!' }
+    ];
+
+    /* function to create trials */
+    function createTrials(stimuli, repetitions) {
+      let trials = [];
+      for (let i = 0; i < repetitions; i++) {
+        let shuffled_stimuli = jsPsych.randomization.shuffle(stimuli.slice()); // shuffle stimuli
+        for (let j = 0; j < shuffled_stimuli.length; j++) {
+          trials.push({
+            type: jsPsychImageKeyboardResponse,
+            stimulus: shuffled_stimuli[j].stimulus,
+            choices: ['z', '/'],
+            data: { correct_response: shuffled_stimuli[j].correct_response, feedback: shuffled_stimuli[j].feedback },
+            on_finish: function(data) {
+              data.correct = data.response == data.correct_response;
+            }
+          });
+          trials.push({
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: function() {
+              let last_trial = jsPsych.data.get().last(1).values()[0];
+              if (last_trial.response === '/') {
+                return ''; // '/'를 누른 경우 빈 문자열 반환
+              } else if (last_trial.response === 'z') {
+                return last_trial.feedback;
+              } else {
+                return '';
+              }
+            },
+            choices: "NO_KEYS",
+            trial_duration: function() {
+              let last_trial = jsPsych.data.get().last(1).values()[0];
+              return last_trial.response === 'z' ? 1000 : 0; // 'z'를 누른 경우 1초 지연
+            }
+          });
+        }
+      }
+      return trials;
+    }
+
+    /* define acquisition phase trials */
+    let acquisition_trials = createTrials(acquisition_stimuli, 10);
+    timeline = timeline.concat(acquisition_trials);
+
+    /* define function to check for 6 consecutive correct responses */
+    function checkConsecutiveCorrect(data) {
+      let trials = data.values();
+      let correct_count = 0;
+      for (let i = 0; i < trials.length; i++) {
+        if (trials[i].correct) {
+          correct_count++;
+          if (correct_count >= 6) {
+            return true;
+          }
+        } else {
+          correct_count = 0;
+        }
+      }
+      return false;
+    }
+
+    /* define updating phase trials */
+    let updating_trials = createTrials(updating_stimuli, 8);
+
+    /* loop updating trials until 6 consecutive correct responses or 16 repetitions */
+    let loop_updating_trials = {
+      timeline: updating_trials,
+      loop_function: function(data) {
+        let attempts = jsPsych.data.get().filter({trial_type: 'jspsych-image-keyboard-response'}).count();
+        return !checkConsecutiveCorrect(jsPsych.data) && attempts < 128; // 16 repetitions * 8 trials per repetition
+      }
+    };
+
+    timeline.push(loop_updating_trials);
+
+    /* start the experiment */
+    jsPsych.run(timeline);
+  }
+</script>
+</html>
